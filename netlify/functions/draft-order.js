@@ -48,7 +48,7 @@ exports.handler = async function(event) {
 
     // Ligne produits avec prix acompte
     const depositItems = items.map(item => ({
-      title: `${item.title} — acompte compétition 50%`,
+      title: `${item.title} — acompte 50%`,
       price: (item.price * 0.5).toFixed(2),
       quantity: item.qty,
       requires_shipping: true
