@@ -32,24 +32,32 @@ exports.handler = async function(event) {
     if (!access_token) {
       return {
         statusCode: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ error: 'Missing SHOPIFY_ADMIN_TOKEN' })
+        headers: corsHeaders,
+        body: JSON.stringify({ error: 'SHOPIFY_ADMIN_TOKEN manquant' })
       };
     }
 
+    // Calcul des montants
     const total = items.reduce((sum, item) => sum + item.price * item.qty, 0);
     const deposit = Math.round(total * 0.5 * 100) / 100;
+    const balance = deposit;
 
     const teamTag = equipe && equipe.toLowerCase().includes('international')
       ? 'equipe-international-cobra'
       : 'equipe-cobra';
 
+    // Ligne produits avec prix acompte
+    const depositItems = items.map(item => ({
+      title: `${item.title} — acompte compétition 50%`,
+      price: (item.price * 0.5).toFixed(2),
+      quantity: item.qty,
+      requires_shipping: true
+    }));
+
     const draftPayload = {
       draft_order: {
-        line_items: items.map(item => ({
-          variant_id: item.variantId,
-          quantity: item.qty
-        })),
+        line_items: depositItems,
+
         note: [
           'COMMANDE ÉQUIPEMENT COMPÉTITION',
           '---',
@@ -63,38 +71,35 @@ exports.handler = async function(event) {
           '---',
           `Total commande réel : ${total.toFixed(2)} $`,
           `Acompte payé aujourd’hui : ${deposit.toFixed(2)} $`,
-          `Solde à payer à la livraison : ${deposit.toFixed(2)} $`,
+          `Solde à payer à la livraison : ${balance.toFixed(2)} $`,
           '---',
-          'IMPORTANT : Le rabais de 50% appliqué sert uniquement à facturer l’acompte. Le solde de 50% reste dû à la livraison.'
+          'IMPORTANT : Le paiement effectué aujourd’hui correspond à un acompte de 50 %. Le solde sera payable à la réception des produits.'
         ].filter(Boolean).join('\n'),
-        applied_discount: {
-          description: 'Acompte 50% — solde à la livraison',
-          value_type: 'percentage',
-          value: '50.0',
-          amount: String(deposit),
-          title: 'Acompte 50%'
-        },
+
         tags: `competition-2026,acompte-50,equipement-competition,${teamTag}`
       }
     };
 
-    const draftRes = await fetch(`https://${shop}/admin/api/${apiVersion}/draft_orders.json`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Shopify-Access-Token': access_token
-      },
-      body: JSON.stringify(draftPayload)
-    });
+    const draftRes = await fetch(
+      `https://${shop}/admin/api/${apiVersion}/draft_orders.json`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Shopify-Access-Token': access_token
+        },
+        body: JSON.stringify(draftPayload)
+      }
+    );
 
     const draftText = await draftRes.text();
 
     if (!draftRes.ok) {
       return {
         statusCode: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers: corsHeaders,
         body: JSON.stringify({
-          error: 'Draft order error',
+          error: 'Erreur création draft order',
           status: draftRes.status,
           detail: draftText
         })
@@ -105,7 +110,7 @@ exports.handler = async function(event) {
 
     return {
       statusCode: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: corsHeaders,
       body: JSON.stringify({
         success: true,
         invoiceUrl: draft_order.invoice_url,
@@ -117,7 +122,7 @@ exports.handler = async function(event) {
   } catch (err) {
     return {
       statusCode: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers: corsHeaders,
       body: JSON.stringify({ error: err.message })
     };
   }
