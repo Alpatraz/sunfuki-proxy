@@ -75,6 +75,13 @@ exports.handler = async function(event) {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '');
 
+    const safeCompetiteurTag = competiteur
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
+
     const nameParts = competiteur.trim().split(' ');
     const firstName = nameParts.shift() || competiteur;
     const lastName = nameParts.join(' ') || '-';
@@ -97,11 +104,8 @@ exports.handler = async function(event) {
 
     const emailHtml = `
       <h2>Confirmation d’engagement — Karaté Sunfuki</h2>
-
       <p>Bonjour ${competiteur},</p>
-
       <p>Votre engagement pour le programme compétitif Karaté Sunfuki a bien été reçu.</p>
-
       <h3>Informations du compétiteur</h3>
       <ul>
         <li><strong>Compétiteur :</strong> ${competiteur}</li>
@@ -110,13 +114,10 @@ exports.handler = async function(event) {
         <li><strong>Date de naissance :</strong> ${dateNaissance || ''}</li>
         ${parentTuteur ? `<li><strong>Parent / tuteur :</strong> ${parentTuteur}</li>` : ''}
       </ul>
-
       <h3>Signature électronique</h3>
       <p><strong>Signature :</strong> ${signature}</p>
       <p><strong>Date de signature :</strong> ${dateSignature || ''}</p>
-
       <p>Merci d’avoir confirmé votre engagement envers l’équipe.</p>
-
       <p>Karaté Sunfuki</p>
     `;
 
@@ -159,16 +160,7 @@ exports.handler = async function(event) {
             price: '0.00',
             quantity: 1,
             requires_shipping: false,
-            taxable: false,
-            properties: [
-              { name: 'Compétiteur', value: competiteur },
-              { name: 'Courriel compétiteur', value: email },
-              { name: 'Équipe', value: equipe },
-              { name: 'Dojo', value: dojo },
-              { name: 'Type', value: 'Engagement sans commande' },
-              { name: 'Signature', value: signature },
-              { name: 'Date de signature', value: dateSignature || '' }
-            ]
+            taxable: false
           }
         ],
 
@@ -217,7 +209,7 @@ exports.handler = async function(event) {
           'signature-seule',
           teamTag,
           `dojo-${safeDojoTag}`,
-          `competiteur-${competiteur.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
+          `competiteur-${safeCompetiteurTag}`
         ].join(',')
       }
     };
