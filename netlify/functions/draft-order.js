@@ -42,15 +42,42 @@ exports.handler = async function(event) {
     const deposit = Math.round(total * 0.5 * 100) / 100;
     const balance = deposit;
 
-    const teamTag = equipe && equipe.toLowerCase().includes('international')
+    const isInternational = equipe && equipe.toLowerCase().includes('international');
+
+    const teamTag = isInternational
       ? 'equipe-international-cobra'
       : 'equipe-cobra';
+
+    const teamShort = isInternational
+      ? 'International Cobra'
+      : 'Cobra';
+
+    const safeDojoTag = dojo
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
+
+    const nameParts = competiteur.trim().split(' ');
+    const firstName = nameParts.shift() || competiteur;
+    const lastName = nameParts.join(' ') || '-';
 
     const depositItems = items.map(item => ({
       title: `${item.title} — acompte 50%`,
       price: (item.price * 0.5).toFixed(2),
       quantity: item.qty,
-      requires_shipping: true
+      requires_shipping: true,
+      properties: [
+        { name: 'Compétiteur', value: competiteur },
+        { name: 'Courriel compétiteur', value: email || '' },
+        { name: 'Équipe', value: equipe },
+        { name: 'Dojo', value: dojo },
+        { name: 'Type', value: 'Commande équipement compétition' },
+        { name: 'Prix réel unitaire', value: `${item.price.toFixed(2)} $` },
+        { name: 'Acompte unitaire', value: `${(item.price * 0.5).toFixed(2)} $` },
+        { name: 'Solde unitaire', value: `${(item.price * 0.5).toFixed(2)} $` }
+      ]
     }));
 
     const note = [
@@ -74,9 +101,58 @@ exports.handler = async function(event) {
 
     const draftPayload = {
       draft_order: {
+        email: email || undefined,
+
         line_items: depositItems,
+
+        billing_address: {
+          first_name: firstName,
+          last_name: lastName,
+          company: dojo,
+          address1: 'Retrait au dojo',
+          city: dojo,
+          province: 'QC',
+          country: 'Canada',
+          zip: 'J0J 0J0'
+        },
+
+        shipping_address: {
+          first_name: firstName,
+          last_name: lastName,
+          company: dojo,
+          address1: 'Retrait au dojo',
+          city: dojo,
+          province: 'QC',
+          country: 'Canada',
+          zip: 'J0J 0J0'
+        },
+
         note,
-        tags: `competition-2026,acompte-50,equipement-competition,${teamTag}`
+
+        note_attributes: [
+          { name: 'Type de formulaire', value: 'Commande équipement compétition' },
+          { name: 'Compétiteur', value: competiteur },
+          { name: 'Courriel compétiteur', value: email || '' },
+          { name: 'Équipe', value: equipe },
+          { name: 'Équipe courte', value: teamShort },
+          { name: 'Dojo', value: dojo },
+          { name: 'Date de naissance', value: dateNaissance },
+          { name: 'Parent / Tuteur', value: parentTuteur || '' },
+          { name: 'Signature électronique', value: signature },
+          { name: 'Date de signature', value: dateSignature },
+          { name: 'Total commande réel', value: total.toFixed(2) },
+          { name: 'Acompte payé', value: deposit.toFixed(2) },
+          { name: 'Solde livraison', value: balance.toFixed(2) }
+        ],
+
+        tags: [
+          'competition-2026',
+          'commande-equipement',
+          'acompte-50',
+          teamTag,
+          `dojo-${safeDojoTag}`,
+          `competiteur-${competiteur.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
+        ].join(',')
       }
     };
 
