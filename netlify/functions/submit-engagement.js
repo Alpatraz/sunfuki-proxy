@@ -60,14 +60,29 @@ exports.handler = async function(event) {
       ? 'equipe-international-cobra'
       : 'equipe-cobra';
 
+    const teamShort = isInternational
+      ? 'International Cobra'
+      : 'Cobra';
+
     const engagementTitle = isInternational
       ? 'Engagement équipe compétition International Cobra'
       : 'Engagement équipe compétition Cobra';
 
+    const safeDojoTag = dojo
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
+
+    const nameParts = competiteur.trim().split(' ');
+    const firstName = nameParts.shift() || competiteur;
+    const lastName = nameParts.join(' ') || '-';
+
     const note = [
       'ENGAGEMENT ÉQUIPE COMPÉTITION',
       '---',
-      `Type : Signature sans commande`,
+      'Type : Signature sans commande',
       `Compétiteur : ${competiteur}`,
       `Email : ${email}`,
       `Équipe : ${equipe}`,
@@ -85,9 +100,7 @@ exports.handler = async function(event) {
 
       <p>Bonjour ${competiteur},</p>
 
-      <p>
-        Votre engagement pour le programme compétitif Karaté Sunfuki a bien été reçu.
-      </p>
+      <p>Votre engagement pour le programme compétitif Karaté Sunfuki a bien été reçu.</p>
 
       <h3>Informations du compétiteur</h3>
       <ul>
@@ -102,9 +115,7 @@ exports.handler = async function(event) {
       <p><strong>Signature :</strong> ${signature}</p>
       <p><strong>Date de signature :</strong> ${dateSignature || ''}</p>
 
-      <p>
-        Merci d’avoir confirmé votre engagement envers l’équipe.
-      </p>
+      <p>Merci d’avoir confirmé votre engagement envers l’équipe.</p>
 
       <p>Karaté Sunfuki</p>
     `;
@@ -140,18 +151,74 @@ exports.handler = async function(event) {
 
     const draftPayload = {
       draft_order: {
+        email,
+
         line_items: [
           {
             title: engagementTitle,
             price: '0.00',
             quantity: 1,
             requires_shipping: false,
-            taxable: false
+            taxable: false,
+            properties: [
+              { name: 'Compétiteur', value: competiteur },
+              { name: 'Courriel compétiteur', value: email },
+              { name: 'Équipe', value: equipe },
+              { name: 'Dojo', value: dojo },
+              { name: 'Type', value: 'Engagement sans commande' },
+              { name: 'Signature', value: signature },
+              { name: 'Date de signature', value: dateSignature || '' }
+            ]
           }
         ],
-        email,
+
+        billing_address: {
+          first_name: firstName,
+          last_name: lastName,
+          company: dojo,
+          address1: 'Engagement équipe',
+          city: dojo,
+          province: 'QC',
+          country: 'Canada',
+          zip: 'J0J 0J0'
+        },
+
+        shipping_address: {
+          first_name: firstName,
+          last_name: lastName,
+          company: dojo,
+          address1: 'Aucun envoi - engagement seulement',
+          city: dojo,
+          province: 'QC',
+          country: 'Canada',
+          zip: 'J0J 0J0'
+        },
+
         note,
-        tags: `competition-2026,engagement-equipe,signature-seule,${teamTag}`
+
+        note_attributes: [
+          { name: 'Type de formulaire', value: 'Engagement sans commande' },
+          { name: 'Compétiteur', value: competiteur },
+          { name: 'Courriel compétiteur', value: email },
+          { name: 'Équipe', value: equipe },
+          { name: 'Équipe courte', value: teamShort },
+          { name: 'Dojo', value: dojo },
+          { name: 'Date de naissance', value: dateNaissance || '' },
+          { name: 'Parent / Tuteur', value: parentTuteur || '' },
+          { name: 'Signature électronique', value: signature },
+          { name: 'Date de signature', value: dateSignature || '' },
+          { name: 'Commande équipement', value: 'Non' },
+          { name: 'Montant', value: '0.00' }
+        ],
+
+        tags: [
+          'competition-2026',
+          'engagement-equipe',
+          'signature-seule',
+          teamTag,
+          `dojo-${safeDojoTag}`,
+          `competiteur-${competiteur.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
+        ].join(',')
       }
     };
 
