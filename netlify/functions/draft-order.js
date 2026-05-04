@@ -59,6 +59,13 @@ exports.handler = async function(event) {
       .replace(/[^a-z0-9]+/g, '-')
       .replace(/^-|-$/g, '');
 
+    const safeCompetiteurTag = competiteur
+      .toLowerCase()
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-|-$/g, '');
+
     const nameParts = competiteur.trim().split(' ');
     const firstName = nameParts.shift() || competiteur;
     const lastName = nameParts.join(' ') || '-';
@@ -67,17 +74,7 @@ exports.handler = async function(event) {
       title: `${item.title} — acompte 50%`,
       price: (item.price * 0.5).toFixed(2),
       quantity: item.qty,
-      requires_shipping: true,
-      properties: [
-        { name: 'Compétiteur', value: competiteur },
-        { name: 'Courriel compétiteur', value: email || '' },
-        { name: 'Équipe', value: equipe },
-        { name: 'Dojo', value: dojo },
-        { name: 'Type', value: 'Commande équipement compétition' },
-        { name: 'Prix réel unitaire', value: `${item.price.toFixed(2)} $` },
-        { name: 'Acompte unitaire', value: `${(item.price * 0.5).toFixed(2)} $` },
-        { name: 'Solde unitaire', value: `${(item.price * 0.5).toFixed(2)} $` }
-      ]
+      requires_shipping: true
     }));
 
     const note = [
@@ -102,7 +99,6 @@ exports.handler = async function(event) {
     const draftPayload = {
       draft_order: {
         email: email || undefined,
-
         line_items: depositItems,
 
         billing_address: {
@@ -151,7 +147,7 @@ exports.handler = async function(event) {
           'acompte-50',
           teamTag,
           `dojo-${safeDojoTag}`,
-          `competiteur-${competiteur.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`
+          `competiteur-${safeCompetiteurTag}`
         ].join(',')
       }
     };
