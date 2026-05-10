@@ -70,12 +70,31 @@ exports.handler = async function(event) {
     const firstName = nameParts.shift() || competiteur;
     const lastName = nameParts.join(' ') || '-';
 
-    const depositItems = items.map(item => ({
-      title: `${item.title} — acompte 50%`,
-      price: (item.price * 0.5).toFixed(2),
-      quantity: item.qty,
-      requires_shipping: true
-    }));
+    // ─── CORRECTION : taille dans le titre + propriétés de ligne ───────────
+    const depositItems = items.map(item => {
+      const sizeLabel = item.variantTitle && item.variantTitle !== 'Taille unique'
+        ? ` — ${item.variantTitle}`
+        : '';
+
+      return {
+        title: `${item.title}${sizeLabel} — acompte 50%`,
+        price: (item.price * 0.5).toFixed(2),
+        quantity: item.qty,
+        requires_shipping: true,
+        properties: [
+          { name: 'Compétiteur', value: competiteur },
+          { name: 'Dojo', value: dojo },
+          { name: 'Équipe', value: equipe },
+          ...(item.variantTitle && item.variantTitle !== 'Taille unique'
+            ? [{ name: 'Taille', value: item.variantTitle }]
+            : []),
+          { name: 'Prix réel unitaire', value: `${item.price.toFixed(2)} $` },
+          { name: 'Acompte unitaire', value: `${(item.price * 0.5).toFixed(2)} $` },
+          { name: 'Solde unitaire', value: `${(item.price * 0.5).toFixed(2)} $` }
+        ]
+      };
+    });
+    // ───────────────────────────────────────────────────────────────────────
 
     const note = [
       'COMMANDE ÉQUIPEMENT COMPÉTITION',
@@ -90,10 +109,10 @@ exports.handler = async function(event) {
       `Date de signature : ${dateSignature}`,
       '---',
       `Total commande réel : ${total.toFixed(2)} $`,
-      `Acompte payé aujourd’hui : ${deposit.toFixed(2)} $`,
+      `Acompte payé aujourd'hui : ${deposit.toFixed(2)} $`,
       `Solde à payer à la livraison : ${balance.toFixed(2)} $`,
       '---',
-      'IMPORTANT : Le paiement effectué aujourd’hui correspond à un acompte de 50 %. Le solde sera payable à la réception des produits.'
+      "IMPORTANT : Le paiement effectué aujourd'hui correspond à un acompte de 50 %. Le solde sera payable à la réception des produits."
     ].filter(Boolean).join('\n');
 
     const draftPayload = {
