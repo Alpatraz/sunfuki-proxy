@@ -72,10 +72,16 @@ exports.handler = async function(event) {
       };
     }
 
-    const subject =
-      mode === "signature_and_order"
-        ? `Engagement signé + commande — ${equipeFinale}`
-        : `Engagement signé — ${equipeFinale}`;
+    const SUBJECT_LABELS = {
+  cobra: "Engagement équipe compétition Cobra",
+  international: "Engagement équipe compétition International Cobra",
+  coach: "Engagement équipe Coach Sunfuki",
+  assistant: "Engagement équipe Assistant-Coach Sunfuki"
+};
+
+const subject =
+  "Confirmation d’engagement — " +
+  (SUBJECT_LABELS[teamKey] || equipeFinale);
 
     const itemsHtml = Array.isArray(body.items) && body.items.length
       ? body.items.map(function(item) {
