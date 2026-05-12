@@ -1,313 +1,191 @@
 exports.handler = async function(event) {
-  const corsHeaders = {
-    'Access-Control-Allow-Origin': 'https://boutique-karatesunfuki.com',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS',
-    'Access-Control-Allow-Headers': 'Content-Type',
+  const headers = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS",
+    "Content-Type": "application/json"
   };
 
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 200, headers: corsHeaders, body: '' };
+  if (event.httpMethod === "OPTIONS") {
+    return { statusCode: 200, headers, body: "" };
   }
 
-  if (event.httpMethod !== 'POST') {
-    return { statusCode: 405, headers: corsHeaders, body: 'Method not allowed' };
+  if (event.httpMethod !== "POST") {
+    return {
+      statusCode: 405,
+      headers,
+      body: JSON.stringify({ success: false, error: "Méthode non autorisée" })
+    };
   }
 
   try {
-    const {
-      competiteur,
-      email,
-      equipe,
-      dojo,
-      dateNaissance,
-      parentTuteur,
-      signature,
-      dateSignature,
-      mode
-    } = JSON.parse(event.body);
+    const body = JSON.parse(event.body || "{}");
 
-    const shop = process.env.SHOPIFY_SHOP;
-    const access_token = process.env.SHOPIFY_ADMIN_TOKEN;
-    const apiVersion = process.env.SHOPIFY_API_VERSION || '2026-04';
-
-    const RESEND_API_KEY = process.env.RESEND_API_KEY;
-    const SITE_EMAIL = process.env.SITE_EMAIL;
-    const FROM_EMAIL = process.env.FROM_EMAIL || SITE_EMAIL;
-    const REPORT_WEBHOOK_URL = process.env.REPORT_WEBHOOK_URL;
-
-    if (!access_token) {
-      return {
-        statusCode: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ success: false, error: 'SHOPIFY_ADMIN_TOKEN manquant' })
-      };
-    }
-
-    if (!competiteur || !email || !equipe || !dojo || !signature) {
-      return {
-        statusCode: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          success: false,
-          error: 'Informations obligatoires manquantes.'
-        })
-      };
-    }
-
-    const isInternational = equipe.toLowerCase().includes('international');
-
-    const teamTag = isInternational
-      ? 'equipe-international-cobra'
-      : 'equipe-cobra';
-
-    const teamShort = isInternational
-      ? 'International Cobra'
-      : 'Cobra';
-
-    const engagementTitle = isInternational
-      ? 'Engagement équipe compétition International Cobra'
-      : 'Engagement équipe compétition Cobra';
-
-    const safeDojoTag = dojo
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-|-$/g, '');
-
-    const safeCompetiteurTag = competiteur
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '')
-      .replace(/[^a-z0-9]+/g, '-')
-      .replace(/^-|-$/g, '');
-
-    const nameParts = competiteur.trim().split(' ');
-    const firstName = nameParts.shift() || competiteur;
-    const lastName = nameParts.join(' ') || '-';
-
-    const note = [
-      'ENGAGEMENT ÉQUIPE COMPÉTITION',
-      '---',
-      'Type : Signature sans commande',
-      `Compétiteur : ${competiteur}`,
-      `Email : ${email}`,
-      `Équipe : ${equipe}`,
-      `Dojo : ${dojo}`,
-      `Date de naissance : ${dateNaissance || ''}`,
-      parentTuteur ? `Parent / Tuteur : ${parentTuteur}` : '',
-      `Signature électronique : ${signature}`,
-      `Date de signature : ${dateSignature || ''}`,
-      '---',
-      'Aucune commande d’équipement associée à cet engagement.'
-    ].filter(Boolean).join('\n');
-
-    const emailHtml = `
-      <h2>Confirmation d’engagement — Karaté Sunfuki</h2>
-      <p>Bonjour ${competiteur},</p>
-      <p>Votre engagement pour le programme compétitif Karaté Sunfuki a bien été reçu.</p>
-      <h3>Informations du compétiteur</h3>
-      <ul>
-        <li><strong>Compétiteur :</strong> ${competiteur}</li>
-        <li><strong>Équipe :</strong> ${equipe}</li>
-        <li><strong>Dojo :</strong> ${dojo}</li>
-        <li><strong>Date de naissance :</strong> ${dateNaissance || ''}</li>
-        ${parentTuteur ? `<li><strong>Parent / tuteur :</strong> ${parentTuteur}</li>` : ''}
-      </ul>
-      <h3>Signature électronique</h3>
-      <p><strong>Signature :</strong> ${signature}</p>
-      <p><strong>Date de signature :</strong> ${dateSignature || ''}</p>
-      <p>Merci d’avoir confirmé votre engagement envers l’équipe.</p>
-      <p>Karaté Sunfuki</p>
-    `;
-
-    if (RESEND_API_KEY && FROM_EMAIL && SITE_EMAIL) {
-      const mailRes = await fetch('https://api.resend.com/emails', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${RESEND_API_KEY}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          from: FROM_EMAIL,
-          to: [email, SITE_EMAIL],
-          subject: `Confirmation d’engagement — ${engagementTitle}`,
-          html: emailHtml
-        })
-      });
-
-      if (!mailRes.ok) {
-        const mailText = await mailRes.text();
-        return {
-          statusCode: 500,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            success: false,
-            error: 'Erreur lors de l’envoi du courriel.',
-            detail: mailText
-          })
-        };
-      }
-    }
-
-    const draftPayload = {
-      draft_order: {
-        email,
-
-        line_items: [
-          {
-            title: engagementTitle,
-            price: '0.00',
-            quantity: 1,
-            requires_shipping: false,
-            taxable: false
-          }
-        ],
-
-        billing_address: {
-          first_name: firstName,
-          last_name: lastName,
-          company: dojo,
-          address1: 'Engagement équipe',
-          city: dojo,
-          province: 'QC',
-          country: 'Canada',
-          zip: 'J0J 0J0'
-        },
-
-        shipping_address: {
-          first_name: firstName,
-          last_name: lastName,
-          company: dojo,
-          address1: 'Aucun envoi - engagement seulement',
-          city: dojo,
-          province: 'QC',
-          country: 'Canada',
-          zip: 'J0J 0J0'
-        },
-
-        note,
-
-        note_attributes: [
-          { name: 'Type de formulaire', value: 'Engagement sans commande' },
-          { name: 'Compétiteur', value: competiteur },
-          { name: 'Courriel compétiteur', value: email },
-          { name: 'Équipe', value: equipe },
-          { name: 'Équipe courte', value: teamShort },
-          { name: 'Dojo', value: dojo },
-          { name: 'Date de naissance', value: dateNaissance || '' },
-          { name: 'Parent / Tuteur', value: parentTuteur || '' },
-          { name: 'Signature électronique', value: signature },
-          { name: 'Date de signature', value: dateSignature || '' },
-          { name: 'Commande équipement', value: 'Non' },
-          { name: 'Montant', value: '0.00' }
-        ],
-
-        tags: [
-          'competition-2026',
-          'engagement-equipe',
-          'signature-seule',
-          teamTag,
-          `dojo-${safeDojoTag}`,
-          `competiteur-${safeCompetiteurTag}`
-        ].join(',')
-      }
+    const TEAM_LABELS = {
+      cobra: "Équipe Cobra",
+      international: "Équipe International Cobra",
+      coach: "Coach Sunfuki",
+      assistant: "Assistant-Coach Sunfuki"
     };
 
-    const draftRes = await fetch(
-      `https://${shop}/admin/api/${apiVersion}/draft_orders.json`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Shopify-Access-Token': access_token
-        },
-        body: JSON.stringify(draftPayload)
-      }
-    );
+    const teamKey = body.teamKey || "";
+    const equipeFinale = TEAM_LABELS[teamKey] || body.equipe || "Équipe non précisée";
 
-    const draftText = await draftRes.text();
+    const competiteur = body.competiteur || "";
+    const email = body.email || "";
+    const dojo = body.dojo || "";
+    const dateNaissance = body.dateNaissance || "";
+    const parentTuteur = body.parentTuteur || "";
+    const signature = body.signature || "";
+    const dateSignature = body.dateSignature || "";
+    const requirementsText = body.requirementsText || "";
+    const mode = body.mode || "signature_only";
+    const total = body.total || 0;
+    const acompte = body.acompte || 0;
+    const solde = body.solde || 0;
+    const invoiceUrl = body.invoiceUrl || "";
+    const draftOrderId = body.draftOrderId || "";
 
-    if (!draftRes.ok) {
+    if (!competiteur || !email || !signature || !equipeFinale) {
       return {
-        statusCode: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        statusCode: 400,
+        headers,
         body: JSON.stringify({
           success: false,
-          error: 'Erreur création Draft Order engagement.',
-          status: draftRes.status,
-          detail: draftText
+          error: "Informations manquantes"
         })
       };
     }
 
-    const { draft_order } = JSON.parse(draftText);
+    const resendApiKey = process.env.RESEND_API_KEY;
+    const fromEmail = process.env.FROM_EMAIL;
+    const siteEmail = process.env.SITE_EMAIL;
 
-    const completeRes = await fetch(
-      `https://${shop}/admin/api/${apiVersion}/draft_orders/${draft_order.id}/complete.json`,
-      {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'X-Shopify-Access-Token': access_token
-        },
-        body: JSON.stringify({
-          payment_pending: false
-        })
-      }
-    );
-
-    const completeText = await completeRes.text();
-
-    if (!completeRes.ok) {
+    if (!resendApiKey || !fromEmail || !siteEmail) {
       return {
         statusCode: 500,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        headers,
         body: JSON.stringify({
           success: false,
-          error: 'Engagement créé en brouillon, mais erreur lors de la conversion en commande.',
-          draftOrderId: draft_order.id,
-          status: completeRes.status,
-          detail: completeText
+          error: "Configuration courriel manquante"
         })
       };
     }
 
-    if (REPORT_WEBHOOK_URL) {
-      await fetch(REPORT_WEBHOOK_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+    const subject =
+      mode === "signature_and_order"
+        ? `Engagement signé + commande — ${equipeFinale}`
+        : `Engagement signé — ${equipeFinale}`;
+
+    const itemsHtml = Array.isArray(body.items) && body.items.length
+      ? body.items.map(function(item) {
+          return `
+            <tr>
+              <td style="padding:8px;border-bottom:1px solid #ddd;">${item.title || ""}</td>
+              <td style="padding:8px;border-bottom:1px solid #ddd;">${item.variantTitle || ""}</td>
+              <td style="padding:8px;border-bottom:1px solid #ddd;text-align:center;">${item.qty || 0}</td>
+              <td style="padding:8px;border-bottom:1px solid #ddd;text-align:right;">${item.price || 0} $</td>
+            </tr>
+          `;
+        }).join("")
+      : "";
+
+    const orderBlock = mode === "signature_and_order"
+      ? `
+        <h3>Commande</h3>
+        <p><strong>Total commande :</strong> ${total} $</p>
+        <p><strong>Acompte :</strong> ${acompte} $</p>
+        <p><strong>Solde :</strong> ${solde} $</p>
+        ${invoiceUrl ? `<p><strong>Lien de paiement :</strong> <a href="${invoiceUrl}">${invoiceUrl}</a></p>` : ""}
+        ${draftOrderId ? `<p><strong>Draft Order ID :</strong> ${draftOrderId}</p>` : ""}
+
+        ${itemsHtml ? `
+          <table style="border-collapse:collapse;width:100%;margin-top:12px;">
+            <thead>
+              <tr>
+                <th style="text-align:left;padding:8px;border-bottom:2px solid #333;">Produit</th>
+                <th style="text-align:left;padding:8px;border-bottom:2px solid #333;">Taille / Variante</th>
+                <th style="text-align:center;padding:8px;border-bottom:2px solid #333;">Qté</th>
+                <th style="text-align:right;padding:8px;border-bottom:2px solid #333;">Prix</th>
+              </tr>
+            </thead>
+            <tbody>${itemsHtml}</tbody>
+          </table>
+        ` : ""}
+      `
+      : "";
+
+    const html = `
+      <div style="font-family:Arial,sans-serif;line-height:1.5;color:#222;">
+        <h2>${subject}</h2>
+
+        <h3>Informations</h3>
+        <p><strong>Équipe / rôle :</strong> ${equipeFinale}</p>
+        <p><strong>Clé technique :</strong> ${teamKey}</p>
+        <p><strong>Nom :</strong> ${competiteur}</p>
+        <p><strong>Courriel :</strong> ${email}</p>
+        <p><strong>Dojo :</strong> ${dojo}</p>
+        <p><strong>Date de naissance :</strong> ${dateNaissance}</p>
+        ${parentTuteur ? `<p><strong>Parent / tuteur :</strong> ${parentTuteur}</p>` : ""}
+
+        <h3>Signature</h3>
+        <p><strong>Signature :</strong> ${signature}</p>
+        <p><strong>Date :</strong> ${dateSignature}</p>
+
+        ${orderBlock}
+
+        <h3>Exigences signées</h3>
+        <div style="background:#f6f6f6;padding:15px;border-radius:8px;">
+          ${requirementsText}
+        </div>
+      </div>
+    `;
+
+    const recipients = [email, siteEmail];
+
+    const response = await fetch("https://api.resend.com/emails", {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${resendApiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        from: fromEmail,
+        to: recipients,
+        subject,
+        html
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return {
+        statusCode: response.status,
+        headers,
         body: JSON.stringify({
-          type: mode || 'signature_only',
-          competiteur,
-          email,
-          equipe,
-          dojo,
-          dateNaissance,
-          parentTuteur: parentTuteur || '',
-          signature,
-          dateSignature,
-          hasOrder: false,
-          shopifyDraftOrderId: draft_order.id,
-          createdAt: new Date().toISOString()
+          success: false,
+          error: data.message || "Erreur Resend",
+          details: data
         })
-      });
+      };
     }
 
     return {
       statusCode: 200,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({
         success: true,
-        message: 'Engagement signé, envoyé et ajouté dans Shopify.',
-        draftOrderId: draft_order.id
+        teamKey,
+        equipe: equipeFinale,
+        resend: data
       })
     };
 
   } catch (err) {
     return {
       statusCode: 500,
-      headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({
         success: false,
         error: err.message
