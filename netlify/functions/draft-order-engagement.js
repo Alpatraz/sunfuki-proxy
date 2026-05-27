@@ -47,7 +47,7 @@ exports.handler = async function(event) {
 
     const draftPayload = {
       draft_order: {
-        email: email || undefined,
+        email: undefined,
         line_items: [{
           title: engagementTitle,
           price: '0.00',
