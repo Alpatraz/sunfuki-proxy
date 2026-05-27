@@ -92,10 +92,12 @@ exports.handler = async function(event) {
     );
 
     const data = await res.json();
-    if (!res.ok) {
-      return { statusCode: 500, headers: corsHeaders,
-               body: JSON.stringify({ error: 'Erreur Shopify', detail: data }) };
-    }
+if (!res.ok) {
+  console.error('SHOPIFY ERROR:', JSON.stringify(data));
+  console.error('PAYLOAD SENT:', JSON.stringify(draftPayload));
+  return { statusCode: 500, headers: corsHeaders,
+           body: JSON.stringify({ error: 'Erreur Shopify', detail: data }) };
+}
 
     // Compléter automatiquement la commande à 0$
     const orderId = data.draft_order.id;
